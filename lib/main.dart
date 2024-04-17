@@ -2,13 +2,15 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-
 
 final date = DateTime.now().toIso8601String();
 
-final operatorMessageController = StateProvider.autoDispose<String>((ref) => "Aguarde...");
+final operatorMessageController =
+    StateProvider.autoDispose<String>((ref) => "Aguarde...");
 
+final qrCodeController = StateProvider.autoDispose<String>((ref) => "");
 
 final webSocketProvider =
     Provider<WebSocketSitef>((ref) => WebSocketSitef(ref));
@@ -35,27 +37,57 @@ class WebSocketSitef {
       if (json.containsKey("status")) {
         final response = WebSocketResponse.fromJson(json);
         if (response.status == "console") {
-          final consoleMessageControler = ref.read(operatorMessageController.notifier);
+          final consoleMessageControler =
+              ref.read(operatorMessageController.notifier);
           consoleMessageControler.state = response.message ?? "";
+          return;
+        }
+        if (response.status == "error") {
+          print("Erro: ${response.data}");
+          return;
+        }
+        if (response.status == "qr_code") {
+          final qr =
+              ref.read(qrCodeController.notifier);
+          qr.state = response.message ?? "";
+          return;
         }
         if (response.status == "success") {
-          print(response.data.toString());
-          finaliza();
+          switch (response.tipo) {
+            case 2:
+              print("RETORNO TRANSAÇÃO: ${response.data}");
+              finaliza();
+              return;
+            case 3:
+              print("RETORNO FINALIZA: ${response.data}");
+              return;
+            case 4:
+              print("RETORNO CANCELAMENTO: ${response.data}");
+              return;
+            case 6:
+              print("RETORNO OBTEM DADOS PINPAD: ${response.data}");
+              return;
+            default:
+              return;
+          }
+        }
+        if (response.status == "cancelamento") {
+          print(json.toString());
+          print(response.message);
+          return;
         }
       }
     });
   }
 
-  sendMessage() {
+  void finaliza() {
+    // final date = DateTime.now().toIso8601String();
     final json = {
-      "tipo": 2,
+      "tipo": 3,
       "jsonTipo": {
-        "formaDePagamento": 2,
-        "valor": 10.0,
-        "parcela": 1,
+        "confirma": true,
         "nrCupom": 2,
-        "operador": 1,
-        "data": date
+        "data": DateTime.now().toIso8601String(),
       }
     };
 
@@ -63,11 +95,79 @@ class WebSocketSitef {
     channel.sink.add(jsonEncoded);
   }
 
-  void finaliza() {
-    // final date = DateTime.now().toIso8601String();
+  sendMessage() {
     final json = {
-      "tipo": 3,
-      "jsonTipo": {"confirma": true, "nrCupom": 2, "data": date}
+      "tipo": 2,
+      "jsonTipo": {
+        "formaDePagamento": 3,
+        "valor": 10.0,
+        "parcela": 1,
+        "nrCupom": 2,
+        "operador": 300,
+        "data": DateTime.now().toIso8601String()
+      }
+    };
+
+    final jsonEncoded = jsonEncode(json);
+    channel.sink.add(jsonEncoded);
+  }
+
+  sendTestData() {
+    final json = {
+      "tipo": 6,
+      "jsonTipo": {}
+    };
+
+    final jsonEncoded = jsonEncode(json);
+    channel.sink.add(jsonEncoded);
+  }
+
+  cancelaOp() {
+    final json = {
+      "tipo": 5,
+      "jsonTipo": {}
+    };
+
+    final jsonEncoded = jsonEncode(json);
+    channel.sink.add(jsonEncoded);
+  }
+
+  verificaPinPad() {
+    final json = {
+      "tipo": 1,
+      "jsonTipo": {}
+    };
+
+    final jsonEncoded = jsonEncode(json);
+    channel.sink.add(jsonEncoded);
+  }
+
+  // {"tipo":2,"jsonTipo":{"formaDePagamento":2,"valor":10.0,"parcela":1,"nrCupom":103,"operador":361,"data":"2024-04-05T08:11:18.418643"}}
+  sendCancelamento() {
+    final json = {
+      "tipo": 4,
+      "jsonTipo": {
+        //0 DEBITO - 1 CREDITO
+        "tipoCancelamento": 1,
+        "valor": 40.0,
+        // "parcela": 1,
+        // "nrCupom": 107,
+        // "operador": 361,
+        "data": DateTime.now().toIso8601String(),
+        'autorizacao': "999050014"
+      }
+    };
+
+    final jsonEncoded = jsonEncode(json);
+    channel.sink.add(jsonEncoded);
+  }
+
+  sendObtemDadosPinPad() {
+    final json = {
+      "tipo": 6,
+      "jsonTipo": {
+        "tipo": 2
+      }
     };
 
     final jsonEncoded = jsonEncode(json);
@@ -78,33 +178,6 @@ class WebSocketSitef {
 // late IOWebSocketChannel channel;
 
 void main() {
-  // channel = IOWebSocketChannel.connect('ws://127.0.0.1:3000/ws/4');
-  // channel.stream.listen((message) {
-  //   // if(message is String && message.contains("CONSOLE")) {
-  //   //   int inicio = message.indexOf('[');
-  //   //   int fim = message.lastIndexOf(']');
-  //   //   if (inicio != -1 && fim != -1 && fim > inicio) {
-  //   //     String console = message.substring(inicio + 1, fim);
-  //   //     print(console);
-  //   //   }
-  //   //   return;
-  //   // }
-  //   if (message is Map<String, dynamic>) {
-  //     if (message.containsKey("status")) {
-  //       final response = WebSocketResponse.fromJson(message);
-  //       if (response.status == "console") {
-  //         print(response.message);
-  //       }
-  //       if (response.status == "success") {
-  //         // final funcResponse = TransacaoResponse.fromJson(response.data ?? {});
-  //         finaliza();
-  //
-  //
-  //       }
-  //     }
-  //   }
-  //   print('$message');
-  // });
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -135,21 +208,31 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   void sendMessage(WidgetRef ref) async {
-    // final channel = IOWebSocketChannel.connect('ws://127.0.0.1:3000/ws/4');
-    //
-    // channel.stream.listen((message) {
-    //   print('Received: $message');
-    // });
-    // final date = DateTime.now().toIso8601String();
+    final qr = ref.read(qrCodeController.notifier);
+    qr.state = "";
     final webSocket = ref.read(webSocketProvider);
     await webSocket.init();
-    webSocket.sendMessage();
+    webSocket.sendObtemDadosPinPad();
+    // webSocket.sendTestData();
+    // webSocket.verificaPinPad();
+    // webSocket.sendMessage();
+    // webSocket.sendCancelamento();
+  }
+
+  void cancela(WidgetRef ref) async {
+    // final qr = ref.read(qrCodeController.notifier);
+    // qr.state = "";
+    final webSocket = ref.read(webSocketProvider);
+    // await webSocket.init();
+    webSocket.cancelaOp();
+    // webSocket.sendCancelamento();
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer(builder: (context, ref, _) {
       final message = ref.watch(operatorMessageController);
+      final qr = ref.watch(qrCodeController);
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -159,16 +242,46 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              qr.isNotEmpty
+                  ? SizedBox(
+                      width: 400,
+                      height: 400,
+                      child: QrImageView(
+                        data: qr,
+                        version: QrVersions.auto,
+                        size: 400.0,
+                        errorCorrectionLevel: QrErrorCorrectLevel.H,
+                        gapless: true,
+                        backgroundColor: Colors.white,
+                        eyeStyle: const QrEyeStyle(
+                            eyeShape: QrEyeShape.square, color: Colors.black),
+                        dataModuleStyle: const QrDataModuleStyle(
+                          color: Colors.black,
+                        ),
+                      ),
+                    )
+                  : Container(),
               Text(
                 message,
               ),
             ],
           ),
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => sendMessage(ref),
-          tooltip: 'Increment',
-          child: const Icon(Icons.add),
+        floatingActionButton: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              onPressed: () => cancela(ref),
+              tooltip: 'Cancela',
+              child: const Icon(Icons.subdirectory_arrow_left),
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton(
+              onPressed: () => sendMessage(ref),
+              tooltip: 'Increment',
+              child: const Icon(Icons.add),
+            ),
+          ],
         ),
       );
     });
