@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:path/path.dart' as p;
+
 
 final date = DateTime.now().toIso8601String();
 
@@ -23,10 +26,11 @@ class WebSocketSitef {
   WebSocketSitef(this.ref);
 
   init() async {
-    channel = WebSocketChannel.connect(Uri.parse('ws://127.0.0.1:3000/ws/4'));
+    channel = WebSocketChannel.connect(Uri.parse('ws://127.0.0.1:3000/ws/1'));
 
     channel.stream.listen((message) {
       Map<String, dynamic> json = {};
+      print(message);
 
       try {
         json = jsonDecode(message);
@@ -43,7 +47,7 @@ class WebSocketSitef {
           return;
         }
         if (response.status == "error") {
-          print("Erro: ${response.data}");
+          print("Erro: ${response.message}");
           return;
         }
         if (response.status == "qr_code") {
@@ -166,10 +170,18 @@ class WebSocketSitef {
     final json = {
       "tipo": 6,
       "jsonTipo": {
-        "tipo": 2
+        "tipo": 1
       }
     };
 
+    final jsonEncoded = jsonEncode(json);
+    channel.sink.add(jsonEncoded);
+  }
+
+  send() {
+    final json = {
+      "migrate_action": 0
+    };
     final jsonEncoded = jsonEncode(json);
     channel.sink.add(jsonEncoded);
   }
@@ -208,13 +220,12 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   void sendMessage(WidgetRef ref) async {
-    final qr = ref.read(qrCodeController.notifier);
-    qr.state = "";
+
     final webSocket = ref.read(webSocketProvider);
     await webSocket.init();
-    webSocket.sendObtemDadosPinPad();
+    // webSocket.send();
     // webSocket.sendTestData();
-    // webSocket.verificaPinPad();
+    webSocket.verificaPinPad();
     // webSocket.sendMessage();
     // webSocket.sendCancelamento();
   }
@@ -396,5 +407,17 @@ class TransacaoResponse {
   @override
   String toString() {
     return 'TransacaoResponse{rede: $rede, bandeira: $bandeira, nSUSitef: $nSUSitef, nSUHostAutorizador: $nSUHostAutorizador, cartao: $cartao, dataDoVencimento: $dataDoVencimento, tipoDoCartaoLido: $tipoDoCartaoLido, bandeiraNFCE: $bandeiraNFCE, gerPDV: $gerPDV, pagamentoCdGrupo: $pagamentoCdGrupo, pagamentoCdSubgrupo: $pagamentoCdSubgrupo, pagamentoUsu: $pagamentoUsu, modalidadeDePagamento: $modalidadeDePagamento, comprovanteTipo: $comprovanteTipo, comprovanteViaCliente: $comprovanteViaCliente, comprovanteViaLoja: $comprovanteViaLoja, respostaAutorizador: $respostaAutorizador, identificacaoTransacao: $identificacaoTransacao, contadorPagamentos: $contadorPagamentos}';
+  }
+}
+
+class MigrateRequest {
+  final String migratiosnPath;
+
+  MigrateRequest({required this.migratiosnPath});
+
+  Map<String, dynamic> toJson() {
+    Map<String, dynamic> data = {};
+    data['migrations_path'] = migratiosnPath;
+    return data;
   }
 }
